@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Decals Maker</title>
+    <!-- Tailwind only styles the decal cards; preflight is off so style.css stays in control -->
+    <script>tailwind = { config: { corePlugins: { preflight: false } } };</script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- html2canvas + jsPDF: build the PDF one page at a time (low memory), same as index.html -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <!-- Html5-Qrcode for camera barcode scanning (same lib as index.html) -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- Fonts: Oswald for decals, Roboto as in index.html -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Roboto+Condensed:wght@700;900&family=Roboto:wght@400;700;900&display=swap" rel="stylesheet">
+    <!-- Same stylesheet as index.html -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="decals-page">
+
+<div class="app-container">
+
+    <!-- Top Bar -->
+    <header class="app-header">
+        <button type="button" class="settings-btn" onclick="openThemeModal()" title="Settings">
+            <svg width="22" height="22" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.488.488 0 0 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            </svg>
+        </button>
+        <h1 class="app-title">Decals Maker</h1>
+        <div class="tab-nav">
+            <a class="tab-btn" href="planogram.html" style="text-decoration:none; display:block; text-align:center;">Planogram Maker</a>
+            <button class="tab-btn active" type="button">Decals Maker</button>
+        </div>
+    </header>
+
+    <!-- FORM CARD -->
+    <div class="card">
+        <form id="decalForm" onsubmit="addDecal(event)">
+            <div class="form-group" id="productNameGroup">
+                <label id="productNameLabel">Product Name</label>
+                <div class="barcode-wrapper">
+                    <input type="text" id="itemName" class="input-control" required placeholder="Type name or scan barcode">
+                    <button type="button" class="icon-btn" onclick="openScanner()" title="Scan with Camera">
+                        <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M4 4h3l2-2h6l2 2h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zm8 3a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>
+                    </button>
+                </div>
+                <div id="nameSuggestions" class="name-suggestions"></div>
+                <div id="scanStatus" style="display:none; font-size:12px; font-weight:700;"></div>
+            </div>
+
+            <div class="form-group">
+                <label>Promo Scheme</label>
+                <select id="promoScheme" onchange="handleSchemeChange()" class="input-control" style="font-weight:700;">
+                    <option value="AUTO">Select Promo Scheme</option>
+                    <option value="B1T1">BUY 1 TAKE 1</option>
+                    <option value="B2T2">BUY 2 TAKE 2</option>
+                    <option value="SAVE50">SAVE 50%</option>
+                    <option value="SAVE30">SAVE 30%</option>
+                    <option value="CUSTOM">Custom Price</option>
+                    <option value="CUSTOMPROMO">Custom Promo (type your own banner)</option>
+                </select>
+            </div>
+
+            <div class="form-row" id="priceInputsGrid">
+                <div class="form-group" id="promoPriceContainer">
+                    <label>Promo Price</label>
+                    <input type="number" step="0.01" id="currentPrice" class="input-control" placeholder="0.00" required oninput="calculateSavings()">
+                </div>
+                <div class="form-group" id="oldPriceContainer">
+                    <label id="oldPriceLabel">Original Price</label>
+                    <input type="number" step="0.01" id="oldPrice" class="input-control" placeholder="0.00" required oninput="calculateSavings()">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label id="savingsLabel">Header Badge Text (Auto-Generated)</label>
+                <textarea id="savingsText" rows="2" class="input-control" readonly required placeholder="Will generate automatically"
+                    style="font-weight:800; color:#DC2626; cursor:not-allowed; opacity:0.85; resize:none; font-family:inherit;"></textarea>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Start Date</label>
+                    <input type="date" id="startDate" class="input-control" required>
+                </div>
+                <div class="form-group">
+                    <label>End Date (Optional)</label>
+                    <input type="date" id="endDate" class="input-control">
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn-black">Add Decal to Sheet</button>
+
+            <div class="form-row" style="margin-top:10px;">
+                <button type="button" id="undoBtn" class="btn btn-yellow" onclick="undoAction()" disabled>Undo</button>
+                <button type="button" class="btn btn-danger-light" onclick="clearAllDecals()">Clear All Decals</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- STATUS CARD -->
+    <div class="card status-card">
+        <div class="tag-count">Decal Count: <span id="decalCount">0</span></div>
+        <div style="display:flex; gap:10px; justify-content:center; flex-wrap:wrap;">
+            <button type="button" class="btn btn-pdf" onclick="saveToPDF()">Save to PDF</button>
+            <button type="button" class="btn btn-black" id="sharePdfBtn" onclick="shareLastDecalPdf()" style="width:auto; padding:10px 24px; border-radius:10px;">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 1 0-3-3c0 .24.04.47.09.7L8.04 9.81A2.99 2.99 0 0 0 6 9a3 3 0 1 0 0 6c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65a2.92 2.92 0 1 0 2.92-2.92z"/></svg>
+                Share PDF
+            </button>
+        </div>
+    </div>
+
+    <!-- A4 PREVIEW -->
+    <div class="sheet-outer" id="sheetOuter">
+        <div id="previewContainer" class="preview-container w-full max-w-[210mm] flex flex-col gap-8 items-center"></div>
+    </div>
+
+</div>
+
+<!-- Camera Barcode Scanner Modal -->
+<div id="scannerModal">
+    <div class="modal-content">
+        <h3 style="margin-top:0;">Scan Barcode</h3>
+        <div id="reader"></div>
+        <button type="button" class="btn btn-danger-light" style="margin-top:15px;" onclick="closeScanner()">Cancel</button>
+    </div>
+</div>
+
+<!-- Theme Settings Modal -->
+<div id="themeModal" class="theme-modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; margin-bottom: 15px;">Choose Theme</h3>
+        <div class="theme-options-grid">
+            <button type="button" class="theme-btn theme-default" onclick="setTheme('default')">Default (Indigo)</button>
+            <button type="button" class="theme-btn theme-teal-emerald" onclick="setTheme('teal-emerald')">Teal Emerald</button>
+            <button type="button" class="theme-btn theme-warm-coral" onclick="setTheme('warm-coral')">Warm Coral</button>
+            <button type="button" class="theme-btn theme-midnight-navy" onclick="setTheme('midnight-navy')">Midnight Navy</button>
+            <button type="button" class="theme-btn theme-sunset" onclick="setTheme('sunset')">Sunset</button>
+        </div>
+        <button type="button" class="btn btn-danger-light" style="margin-top:20px;" onclick="closeThemeModal()">Close</button>
+    </div>
+</div>
+
+<!-- Share PDF Modal (same as index.html) -->
+<div id="shareModal" class="theme-modal">
+    <div class="modal-content">
+        <h3 style="margin-top:0; margin-bottom: 4px;">Share PDF</h3>
+        <p id="shareFileName" style="font-size: 12px; color: var(--text-muted); margin: 0 0 15px 0; word-break: break-word;"></p>
+        <div class="share-options">
+            <button type="button" class="share-btn share-gmail" onclick="shareVia('gmail')">Gmail</button>
+            <button type="button" class="share-btn share-messenger" onclick="shareVia('messenger')">Messenger</button>
+            <button type="button" class="share-btn share-shareit" onclick="shareVia('shareit')">SHAREit</button>
+            <button type="button" class="share-btn share-bluetooth" onclick="shareVia('bluetooth')">Bluetooth</button>
+        </div>
+        <p style="font-size: 11px; color: var(--text-muted); margin: 12px 0 0 0;">Your phone's share menu will open. Choose the app there to send the PDF.</p>
+        <button type="button" class="btn btn-danger-light" style="margin-top:15px;" onclick="closeShareModal()">Cancel</button>
+    </div>
+</div>
+
+<!-- Alert Modal (replaces the browser's alert pop-up) -->
+<div id="alertModal" class="theme-modal" onclick="if(event.target===this) closeAlert()">
+    <div class="modal-content alert-card" role="alertdialog" aria-modal="true" aria-labelledby="alertTitle" aria-describedby="alertMessage">
+        <div id="alertIcon" class="alert-icon warning"></div>
+        <h3 id="alertTitle" class="alert-title">Notice</h3>
+        <p id="alertMessage" class="alert-message"></p>
+        <p id="alertDetail" class="alert-detail"></p>
+        <button type="button" id="alertOkBtn" class="btn btn-primary" onclick="closeAlert()">OK</button>
+    </div>
+</div>
+
+<!-- Toast Notification -->
+<div id="toastNotification" class="toast-notification"></div>
+
+<script src="disclaimer.js"></script>
+<script src="script.js"></script>
+<script src="chatbot.js"></script>
+</body>
+</html>
