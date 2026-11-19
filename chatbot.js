@@ -1,4 +1,4 @@
-// Store Tools helper chatbot (Tagalog) with an animated store-clerk mascot ("ROD") that blinks, nods, moves its mouth and can speak.
+// Store Tools helper chatbot (Tagalog) with an animated store-clerk mascot ("ROD") that blinks, nods, moves its mouth and talks (text only, no audio).
 // Drop-in: add <script src="chatbot.js"></script> before </body> on any page.
 // Self-contained (injects its own CSS), works offline, and never touches your other code.
 (function () {
@@ -48,8 +48,7 @@
         '.sbot-av{width:48px;height:48px;flex:none;background:rgba(255,255,255,.2);border-radius:14px;overflow:hidden;position:relative}' +
         '.sbot-av .sbot-rod{position:absolute;width:191.2%;left:-50%;top:-3.2%}' +
         '.sbot-title{flex:1;min-width:0}.sbot-title b{display:block;font-size:15px;font-weight:800}.sbot-title span{font-size:11px;opacity:.9}' +
-        '.sbot-snd,.sbot-x{border:0;background:rgba(255,255,255,.2);color:#fff;width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer}' +
-        '.sbot-snd{font-size:15px}' +
+        '.sbot-x{border:0;background:rgba(255,255,255,.2);color:#fff;width:32px;height:32px;border-radius:50%;font-size:20px;line-height:1;cursor:pointer}' +
         '.sbot-log{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:var(--sb-bg)}' +
         '.sbot-m{max-width:86%;padding:9px 12px;border-radius:14px;font-size:14px;line-height:1.4;white-space:pre-wrap;word-wrap:break-word}' +
         '.sbot-bot{align-self:flex-start;background:rgba(127,127,127,.14);border-bottom-left-radius:4px}' +
@@ -435,7 +434,6 @@
         '<div class="sbot-panel" role="dialog" aria-label="Chat kay Rod, ang store helper">' +
         '<div class="sbot-head"><div class="sbot-av">' + MASCOT_HEAD + '</div>' +
         '<div class="sbot-title"><b>Si ROD, ang store helper mo</b><span>Magtanong ng presyo o paano gamitin ang app</span></div>' +
-        '<button type="button" class="sbot-snd" aria-label="I-on o i-off ang boses ni ROD" aria-pressed="true">\uD83D\uDD0A</button>' +
         '<button type="button" class="sbot-x" aria-label="Isara ang chat">&times;</button></div>' +
         '<div class="sbot-log" aria-live="polite"></div>' +
         '<div class="sbot-chips"></div>' +
@@ -475,12 +473,9 @@
         });
     }
 
-    // ---------- Talking: animated mouth + optional Tagalog voice ----------
+    // ---------- Talking: animated mouth (no audio) ----------
     var mouthPaths = root.querySelectorAll(".sbot-md");
     var mouthGroups = root.querySelectorAll(".sbot-mouth");
-    var synth = window.speechSynthesis;
-    var voiceOn = !!synth;
-    try { if (localStorage.getItem("sbotVoice") === "0") voiceOn = false; } catch (e) {}
     var mo = 0, target = 0, raf = 0, talkTimer = null, endTimer = null, talkId = 0;
 
     function drawMouth() {
@@ -503,7 +498,6 @@
     function say(text) {
         var id = ++talkId;
         stopTalk();
-        if (synth) synth.cancel();
         var clean = text.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, "").replace(/[•“”₱]/g, "")
             .replace(/\s*\n+\s*/g, ". ").replace(/\s+/g, " ").trim();
         if (!clean) return;
@@ -515,38 +509,9 @@
         }, 75);
         kick();
         var ms = Math.min(5000, 900 + clean.length * 60);
-        if (voiceOn && synth) {
-            try {
-                var u = new SpeechSynthesisUtterance(clean);
-                u.lang = "fil-PH"; u.rate = 1.02; u.pitch = 1.1;
-                var vs = synth.getVoices();
-                for (var k = 0; k < vs.length; k++) { if (/^(fil|tl)([-_]|$)/i.test(vs[k].lang)) { u.voice = vs[k]; break; } }
-                var started = false;
-                u.onstart = function () {
-                    if (id !== talkId) return;
-                    started = true;                                  // voice is really playing: stay "talking" until it ends
-                    clearTimeout(endTimer);
-                    endTimer = setTimeout(function () { if (id === talkId) stopTalk(); }, Math.min(40000, 3000 + clean.length * 110));
-                };
-                u.onend = function () { if (id === talkId) stopTalk(); };
-                u.onerror = function () { if (id === talkId && started) stopTalk(); };   // no voice? keep the timed mouth animation
-                synth.speak(u);
-            } catch (e) {}
-        }
         endTimer = setTimeout(function () { if (id === talkId) stopTalk(); }, ms);
     }
-    function hush() { talkId++; if (synth) synth.cancel(); stopTalk(); }
-
-    var snd = root.querySelector(".sbot-snd");
-    if (!synth) snd.style.display = "none";
-    function paintSnd() { snd.textContent = voiceOn ? "\uD83D\uDD0A" : "\uD83D\uDD07"; snd.setAttribute("aria-pressed", String(voiceOn)); }
-    snd.addEventListener("click", function () {
-        voiceOn = !voiceOn;
-        try { localStorage.setItem("sbotVoice", voiceOn ? "1" : "0"); } catch (e) {}
-        if (!voiceOn) hush();
-        paintSnd();
-    });
-    paintSnd();
+    function hush() { talkId++; stopTalk(); }
 
     function ask(q) {
         q = (q || "").trim();
